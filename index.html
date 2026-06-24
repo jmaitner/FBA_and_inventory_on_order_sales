@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Distribution Solutions — Reorder &amp; Sales Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="vendor/xlsx.full.min.js"></script>
+</head>
+<body>
+  <!-- Password gate (client-side only — see README; use Cloudflare Access for real security) -->
+  <div id="lockScreen" class="lock">
+    <form id="lockForm" class="lock-card" autocomplete="off">
+      <div class="lock-icon">🔒</div>
+      <div class="lock-title">DISTRIBUTION SOLUTIONS</div>
+      <div class="lock-sub">Reorder &amp; Sales Dashboard</div>
+      <input id="lockInput" type="password" class="lock-input" placeholder="Enter password" autofocus />
+      <button type="submit" class="btn btn-primary btn-lg lock-btn">Unlock</button>
+      <div id="lockError" class="lock-error"></div>
+    </form>
+  </div>
+  <script>
+    (function () {
+      var KEY = "ds_dash_auth", EXPECT = "4028b8dd";
+      function h(s){ var x=5381; for(var i=0;i<s.length;i++){ x=(((x<<5)+x)^s.charCodeAt(i))>>>0; } return x.toString(16); }
+      var lock = document.getElementById("lockScreen");
+      function unlock(){ lock.classList.add("hidden"); document.body.classList.remove("locked"); }
+      if (sessionStorage.getItem(KEY) === EXPECT) { unlock(); }
+      else {
+        document.body.classList.add("locked");
+        document.getElementById("lockForm").addEventListener("submit", function (e) {
+          e.preventDefault();
+          var v = document.getElementById("lockInput").value;
+          if (h(v) === EXPECT) { sessionStorage.setItem(KEY, EXPECT); unlock(); }
+          else {
+            var err = document.getElementById("lockError");
+            err.textContent = "Incorrect password.";
+            lock.querySelector(".lock-card").classList.remove("shake");
+            void lock.offsetWidth; lock.querySelector(".lock-card").classList.add("shake");
+            document.getElementById("lockInput").select();
+          }
+        });
+      }
+    })();
+  </script>
+
+  <header class="topbar">
+    <div class="brand">
+      <!-- To use the real logo: drop a file named logo.png in this folder; it will appear automatically. -->
+      <img id="brandLogo" src="logo.png" alt="" onerror="this.style.display='none'" />
+      <div class="brand-text">
+        <span class="brand-name">DISTRIBUTION SOLUTIONS</span>
+        <span class="brand-sub">Reorder &amp; Sales Velocity Dashboard</span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="reportMeta" class="report-meta"></span>
+      <label class="btn btn-primary" for="fileInput">Upload report</label>
+      <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+    </div>
+  </header>
+
+  <!-- Landing / drop zone -->
+  <section id="dropZone" class="dropzone">
+    <div class="dropzone-inner">
+      <div class="dz-icon">⬆</div>
+      <h1>Upload your inventory reports</h1>
+      <p>Drop your <strong>ERP "Inventory On Order &amp; Sales"</strong> <code>.xlsx</code> and/or your
+         <strong>Amazon FBA restock</strong> <code>.csv</code> here — or click to choose. Add the second file
+         anytime and the two are matched and combined automatically.</p>
+      <label class="btn btn-primary btn-lg" for="fileInput">Choose file</label>
+      <p class="dz-note">Everything runs locally in your browser. No data is uploaded anywhere.</p>
+    </div>
+  </section>
+
+  <main id="app" class="app hidden">
+    <!-- KPI summary -->
+    <section id="kpis" class="kpi-grid"></section>
+
+    <!-- Insights / alerts -->
+    <section id="insights" class="insights"></section>
+
+    <!-- Assumptions -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Planning assumptions</h2>
+        <span class="panel-hint">Change any value to instantly re-project demand and reorder quantities.</span>
+      </div>
+      <div id="assumptions" class="assumptions"></div>
+    </section>
+
+    <!-- View switcher + legend -->
+    <div class="viewbar">
+      <div id="viewToggle" class="seg"></div>
+      <div id="legend" class="legend"></div>
+    </div>
+
+    <!-- Controls -->
+    <section class="controls">
+      <input id="search" class="search" type="search" placeholder="Search product code, name, supplier…" />
+      <select id="supplierFilter" class="select"></select>
+      <select id="categoryFilter" class="select"></select>
+      <select id="statusFilter" class="select"></select>
+      <label class="check"><input type="checkbox" id="groupBySupplier" /> Group by supplier</label>
+      <label class="check"><input type="checkbox" id="onlyActionable" checked /> Only items needing action</label>
+      <div class="controls-spacer"></div>
+      <button id="exportPO" class="btn btn-accent">Export reorder / PO</button>
+      <button id="exportFBA" class="btn btn-accent hidden">Export FBA ship-in</button>
+      <button id="exportAll" class="btn">Export full analysis</button>
+    </section>
+
+    <!-- Table -->
+    <section class="table-wrap">
+      <table id="grid" class="grid">
+        <colgroup id="gridCols"></colgroup>
+        <thead id="gridHead"></thead>
+        <tbody id="gridBody"></tbody>
+      </table>
+      <div id="emptyState" class="empty hidden">No items match the current filters.</div>
+    </section>
+
+    <footer class="foot">
+      <span id="rowCount"></span>
+      <span id="footNote" class="foot-note"></span>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

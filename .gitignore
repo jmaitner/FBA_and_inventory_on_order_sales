@@ -1,0 +1,15 @@
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local dev tooling / preview config
+.claude/
+
+# Business data — never commit ERP / FBA reports
+*.xlsx
+*.xls
+*.csv
+_sample.*
+_erp.*
+_fba.*
