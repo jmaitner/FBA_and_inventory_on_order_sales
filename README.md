@@ -29,9 +29,21 @@ node -e 'const s="YOUR_NEW_PASSWORD";let x=5381;for(let i=0;i<s.length;i++){x=((
 
 **Easiest:** double-click `index.html`. It opens in your browser and works offline.
 
-Click **Upload report** (or drag a file onto the page). Upload either report first, then
-add the other anytime — they're combined automatically. The FBA file is matched to the ERP
-by stripping the leading `FBA` from each Amazon SKU (e.g. `FBA5530619` → `5530619`).
+### Uploading (for whoever runs it each week)
+After the password, you get a simple **upload screen with two boxes**:
+1. **Amazon FBA report** — the `.csv` from Amazon Seller Central.
+2. **Inventory On Order & Sales report** — the `.xlsx` from Apprise.
+
+Drag each file onto its box (or click to choose). The box turns **green** and shows how many
+items it found. If you drop a file in the wrong box, it auto-sorts to the right one. Then click
+**Submit & view dashboard**. If you only added one report, it asks whether you want to add the
+other first (both is recommended). The **Upload reports** button (top-right) returns to this
+screen anytime. The FBA file is matched to the ERP by stripping the leading `FBA` from each
+Amazon SKU (e.g. `FBA5530619` → `5530619`).
+
+> **Note on updates:** the asset links in `index.html` use `?v=N`. Bump that number whenever
+> you change `app.js`, `styles.css`, or `whitelist.js` so browsers load the new version instead
+> of a cached one.
 
 ### Focus list (cuts the ERP noise)
 

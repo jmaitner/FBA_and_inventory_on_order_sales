@@ -59,53 +59,143 @@ const round1 = (n) => Math.round(num(n) * 10) / 10;
 /* ============================================================
    FILE LOADING  (accepts ERP .xlsx and FBA .csv, keeps both)
    ============================================================ */
-const fileInput = $("#fileInput");
-const dropZone = $("#dropZone");
+/* Read one file, detect its type, parse it into STATE. Returns a Promise that
+   resolves with { kind, count, label, error } — does NOT build the dashboard. */
+function ingestFile(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const probe = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null })[0] || [];
+        const H = new Set(probe.map((h) => String(h == null ? "" : h).trim()));
+        const isMoveFwd = H.has("Continue Relationship Y/N") || H.has("Closeout Y/N");
+        const isFBA = H.has("fnsku") || H.has("fba-inventory-level-health-status") ||
+          (H.has("sku") && H.has("asin") && H.has("available"));
+        const isERP = !!wb.Sheets["report-data"] || (H.has("Product Code") && H.has("On Hand"));
 
-fileInput.addEventListener("change", (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); fileInput.value = ""; });
-["dragenter", "dragover"].forEach((ev) => dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.add("dragover"); }));
-["dragleave", "drop"].forEach((ev) => dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.remove("dragover"); }));
-dropZone.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+        if (isMoveFwd) { const n = parseWhitelist(wb); resolve({ kind: "whitelist", count: n, label: "focus list" }); }
+        else if (isFBA) { STATE.fba = parseFBA(wb); resolve({ kind: "fba", count: STATE.fba.rows.length, label: "Amazon FBA report" }); }
+        else if (isERP) { STATE.erp = parseERP(wb); resolve({ kind: "erp", count: STATE.erp.products.length, label: "Inventory On Order report" }); }
+        else resolve({ kind: "unknown", error: "This file wasn't recognized as the inventory or FBA report." });
+      } catch (err) { console.error(err); resolve({ kind: "unknown", error: "Could not read this file (" + err.message + ")." }); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
 
-function loadFile(file) {
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const probe = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null })[0] || [];
-      const headerSet = new Set(probe.map((h) => String(h == null ? "" : h).trim()));
-      // move-forward file shares "Product Code"/"On Hand" with the ERP, so check its unique columns FIRST
-      const isMoveFwd = headerSet.has("Continue Relationship Y/N") || headerSet.has("Closeout Y/N");
-      const isFBA = headerSet.has("fnsku") || headerSet.has("fba-inventory-level-health-status") ||
-        (headerSet.has("sku") && headerSet.has("asin") && headerSet.has("available"));
-      const isERP = !!wb.Sheets["report-data"] || (headerSet.has("Product Code") && headerSet.has("On Hand"));
+/* ----- Upload screen wiring (two slots: FBA + Inventory) ----- */
+function setupUploadScreen() {
+  const slots = [
+    { key: "fba", input: "#fileFba", drop: "#dropFba" },
+    { key: "erp", input: "#fileErp", drop: "#dropErp" },
+  ];
+  slots.forEach((s) => {
+    const input = $(s.input), drop = $(s.drop);
+    input.addEventListener("change", (e) => { if (e.target.files[0]) handleSlotFile(s.key, e.target.files[0]); input.value = ""; });
+    ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("dragover"); }));
+    ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("dragover"); }));
+    drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) handleSlotFile(s.key, f); });
+  });
+  $("#submitBtn").addEventListener("click", onSubmitUploads);
+  $("#reuploadBtn").addEventListener("click", showUploadScreen);
+  updateUploadUI();
+}
 
-      if (isMoveFwd) {
-        const n = parseWhitelist(wb);
-        if (!STATE.products.length) { alert(`Move-forward focus list updated: ${n} items.\n\nNow upload your ERP and/or FBA report.`); return; }
-        alert(`Move-forward focus list updated: ${n} items.`);
-      }
-      else if (isFBA) STATE.fba = parseFBA(wb);
-      else if (isERP) STATE.erp = parseERP(wb);
-      else { alert("Unrecognized file. Expected the ERP inventory .xlsx, the Amazon FBA restock .csv, or the move-forward items .xlsx."); return; }
+function handleSlotFile(slotKey, file) {
+  const statusEl = slotKey === "fba" ? $("#statusFba") : $("#statusErp");
+  statusEl.className = "uc-status reading";
+  statusEl.textContent = "Reading “" + file.name + "” …";
+  ingestFile(file).then((res) => {
+    if (res.error) { statusEl.className = "uc-status err"; statusEl.textContent = "⚠ " + res.error; return; }
+    if (res.kind === "whitelist") {
+      statusEl.className = "uc-status ok";
+      statusEl.innerHTML = "✓ Focus list updated (" + res.count.toLocaleString() + " items). You can still add the report above.";
+      updateUploadUI(); return;
+    }
+    // if the dropped file was actually the other report, gently note it landed in the right place
+    if (res.kind !== slotKey) {
+      const other = res.kind === "fba" ? $("#statusFba") : $("#statusErp");
+      other.dataset.note = "↗ Detected as the " + res.label + " — added to the correct box.";
+    }
+    updateUploadUI();
+  });
+}
 
-      mergeData();
-      if (!STATE.products.length) { return; }
-      // default view based on what's loaded
-      STATE.view = STATE.hasERP ? (STATE.view || "po") : "fba";
-      if (STATE.view === "po" && !STATE.hasERP) STATE.view = "fba";
-      if (STATE.view === "fba" && !STATE.hasFBA) STATE.view = "po";
-      buildUI();
-      $("#dropZone").classList.add("hidden");
-      $("#app").classList.remove("hidden");
-    } catch (err) {
-      console.error(err);
-      alert("Could not read this file.\n\n" + err.message);
+function fileMeta() {
+  const m = {};
+  if (STATE.erp) m.erp = STATE.erp.products.length;
+  if (STATE.fba) m.fba = STATE.fba.rows.length;
+  return m;
+}
+
+function updateUploadUI() {
+  const setCard = (key, loaded, count, dateStr) => {
+    const card = key === "fba" ? $("#cardFba") : $("#cardErp");
+    const st = key === "fba" ? $("#statusFba") : $("#statusErp");
+    card.classList.toggle("loaded", loaded);
+    if (loaded) {
+      st.className = "uc-status ok";
+      st.innerHTML = "✓ Loaded — <b>" + count.toLocaleString() + "</b> items" + (dateStr ? " <span class='muted'>(" + esc(dateStr) + ")</span>" : "") +
+        (st.dataset.note ? "<br><span class='muted'>" + esc(st.dataset.note) + "</span>" : "");
+    } else if (st.className.indexOf("reading") === -1 && st.className.indexOf("err") === -1) {
+      st.className = "uc-status"; st.textContent = "Not uploaded yet";
     }
   };
-  reader.readAsArrayBuffer(file);
+  const erpDate = STATE.erp && STATE.erp.meta["printed-date"] ? String(STATE.erp.meta["printed-date"]).split(" ")[0] : "";
+  const fbaDate = STATE.fba && STATE.fba.meta.snapshotDate ? String(STATE.fba.meta.snapshotDate) : "";
+  setCard("fba", !!STATE.fba, STATE.fba ? STATE.fba.rows.length : 0, fbaDate);
+  setCard("erp", !!STATE.erp, STATE.erp ? STATE.erp.products.length : 0, erpDate);
+
+  const n = (STATE.erp ? 1 : 0) + (STATE.fba ? 1 : 0);
+  const summary = $("#uploadSummary");
+  if (n === 0) summary.innerHTML = "<span class='muted'>Add at least one report to continue. Both is best.</span>";
+  else if (n === 2) summary.innerHTML = "<b class='sum-ok'>✓ Both reports ready.</b> Click Submit to view the dashboard.";
+  else summary.innerHTML = "<b class='sum-warn'>Only the " + (STATE.erp ? "Inventory" : "FBA") + " report is added.</b> We recommend adding both before you continue.";
+  $("#submitBtn").disabled = n === 0;
+  $("#uploadConfirm").classList.add("hidden");
 }
+
+function onSubmitUploads() {
+  const both = STATE.erp && STATE.fba;
+  if (!STATE.erp && !STATE.fba) return;
+  if (both) return goToDashboard();
+  // only one uploaded — ask before continuing
+  const have = STATE.erp ? "Inventory On Order" : "Amazon FBA";
+  const missing = STATE.erp ? "Amazon FBA" : "Inventory On Order";
+  const box = $("#uploadConfirm");
+  box.classList.remove("hidden");
+  box.innerHTML =
+    `<div class="confirm-card">
+       <div class="confirm-q">You've only added the <b>${have}</b> report.</div>
+       <div class="confirm-sub">The dashboard works best with <b>both</b>. Do you want to add the ${missing} report first?</div>
+       <div class="confirm-btns">
+         <button class="btn" id="confirmAddOther">Go back &amp; add ${missing}</button>
+         <button class="btn btn-accent" id="confirmContinue">Continue with just ${have}</button>
+       </div>
+     </div>`;
+  $("#confirmAddOther").addEventListener("click", () => box.classList.add("hidden"));
+  $("#confirmContinue").addEventListener("click", goToDashboard);
+}
+
+function goToDashboard() {
+  mergeData();
+  if (!STATE.products.length) { alert("No product rows found. Please check the file(s)."); return; }
+  STATE.view = STATE.hasERP ? "po" : "fba";
+  buildUI();
+  $("#uploadScreen").classList.add("hidden");
+  $("#app").classList.remove("hidden");
+}
+
+function showUploadScreen() {
+  $("#app").classList.add("hidden");
+  $("#uploadScreen").classList.remove("hidden");
+  updateUploadUI();
+}
+
+// initialize the upload screen as soon as the page is ready
+setupUploadScreen();
 
 /* ============================================================
    PARSING — ERP
@@ -220,7 +310,17 @@ function parseFBA(wb) {
     if (byKey.has(key)) mergeFbaRow(byKey.get(key), f); // same SKU listed twice (e.g. 2 ASINs/conditions)
     else { list.push(f); byKey.set(key, f); }
   }
-  return { rows: list, byKey, meta: { snapshotDate: snapshot, source: "fba" } };
+  return { rows: list, byKey, meta: { snapshotDate: excelOrStr(snapshot), source: "fba" } };
+}
+
+/* SheetJS may parse a date cell as an Excel serial number; render it readably. */
+function excelOrStr(v) {
+  if (v == null || v === "") return "";
+  if (typeof v === "number") {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    if (!isNaN(d)) return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "/" + d.getUTCFullYear();
+  }
+  return String(v);
 }
 
 /* ============================================================

@@ -119,6 +119,45 @@ code { background: var(--gray-bg); padding: 1px 5px; border-radius: 4px; font-si
 .dropzone p { color: var(--muted); margin: 8px 0 18px; }
 .dz-note { font-size: 12px; }
 
+/* ---------- Guided upload screen ---------- */
+.upload-screen { display: flex; justify-content: center; padding: 36px 20px 60px; min-height: calc(100vh - 130px); }
+.upload-inner { width: 100%; max-width: 920px; }
+.upload-inner h1 { font-size: 24px; color: var(--navy); margin: 0 0 8px; text-align: center; }
+.upload-intro { color: var(--muted); font-size: 14px; line-height: 1.6; text-align: center; max-width: 720px; margin: 0 auto 26px; }
+.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 760px) { .upload-grid { grid-template-columns: 1fr; } }
+
+.upload-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 16px; box-shadow: var(--shadow); transition: border-color .15s, box-shadow .15s; }
+.upload-card.loaded { border-color: var(--green); box-shadow: 0 0 0 2px rgba(21,128,61,.12); }
+.uc-head { font-weight: 800; color: var(--navy); font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.uc-step { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 12px; }
+.upload-card.loaded .uc-step { background: var(--green); }
+.uc-how { font-size: 12.5px; color: var(--muted); margin: 8px 0 12px; line-height: 1.5; min-height: 34px; }
+.uc-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  border: 2px dashed var(--line); border-radius: 12px; padding: 26px 14px; cursor: pointer; text-align: center; transition: .12s; background: #fbfdff; }
+.uc-drop:hover { border-color: var(--blue); background: #f3f8fd; }
+.uc-drop.dragover { border-color: var(--accent); background: #fffaf0; }
+.upload-card.loaded .uc-drop { border-color: var(--green); background: #f1faf3; }
+.uc-drop-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 20px; display: flex; align-items: center; justify-content: center; }
+.upload-card.loaded .uc-drop-icon { background: var(--green); }
+.uc-drop-text { font-size: 13px; color: var(--ink); }
+.uc-status { margin-top: 12px; font-size: 12.5px; color: var(--muted); text-align: center; min-height: 18px; font-weight: 600; }
+.uc-status.ok { color: var(--green); }
+.uc-status.err { color: var(--red); }
+.uc-status.reading { color: var(--blue); }
+
+.upload-foot { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 24px; flex-wrap: wrap; }
+.upload-summary { font-size: 14px; color: var(--ink); }
+.sum-ok { color: var(--green); }
+.sum-warn { color: var(--amber); }
+.upload-foot .btn-lg { white-space: nowrap; }
+
+.upload-confirm { margin-top: 18px; }
+.confirm-card { background: #fffaf0; border: 1px solid #f3d39b; border-radius: 12px; padding: 18px 20px; text-align: center; }
+.confirm-q { font-size: 15px; font-weight: 700; color: var(--navy); }
+.confirm-sub { font-size: 13px; color: var(--muted); margin: 6px 0 14px; }
+.confirm-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
 /* ---------- App layout ---------- */
 .app { padding: 18px 18px 60px; width: 100%; margin: 0 auto; }
 

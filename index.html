@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Distribution Solutions — Reorder &amp; Sales Dashboard</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=3" />
   <script src="vendor/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -55,21 +55,53 @@
     </div>
     <div class="topbar-actions">
       <span id="reportMeta" class="report-meta"></span>
-      <label class="btn btn-primary" for="fileInput">Upload report</label>
-      <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+      <button id="reuploadBtn" class="btn btn-primary">Upload reports</button>
     </div>
   </header>
 
-  <!-- Landing / drop zone -->
-  <section id="dropZone" class="dropzone">
-    <div class="dropzone-inner">
-      <div class="dz-icon">⬆</div>
-      <h1>Upload your inventory reports</h1>
-      <p>Drop your <strong>ERP "Inventory On Order &amp; Sales"</strong> <code>.xlsx</code> and/or your
-         <strong>Amazon FBA restock</strong> <code>.csv</code> here — or click to choose. Add the second file
-         anytime and the two are matched and combined automatically. You can also upload an updated
-         <strong>"move forward items"</strong> <code>.xlsx</code> to refresh the focus list.</p>
-      <label class="btn btn-primary btn-lg" for="fileInput">Choose file</label>
+  <!-- Guided upload screen (two slots) -->
+  <section id="uploadScreen" class="upload-screen">
+    <div class="upload-inner">
+      <h1>Upload this week's reports</h1>
+      <p class="upload-intro">
+        Add both files below, then click <b>Submit</b>. You can <b>drag a file onto a box</b> or
+        <b>click the box to choose it</b>. Each box turns green and tells you when the file is recognized.
+        It's okay if you accidentally use the wrong box — it sorts itself out.
+      </p>
+
+      <div class="upload-grid">
+        <!-- FBA -->
+        <div class="upload-card" id="cardFba">
+          <div class="uc-head"><span class="uc-step">1</span> Amazon FBA report</div>
+          <div class="uc-how">The <b>.csv</b> file you download from <b>Amazon Seller Central</b>
+            (Manage FBA Inventory / Restock report).</div>
+          <label class="uc-drop" id="dropFba" for="fileFba">
+            <span class="uc-drop-icon">⬆</span>
+            <span class="uc-drop-text">Drag the FBA <b>.csv</b> here<br><span class="muted">or click to choose</span></span>
+          </label>
+          <input id="fileFba" type="file" accept=".csv,.xlsx,.xls" hidden />
+          <div class="uc-status" id="statusFba">Not uploaded yet</div>
+        </div>
+
+        <!-- Inventory -->
+        <div class="upload-card" id="cardErp">
+          <div class="uc-head"><span class="uc-step">2</span> Inventory On Order &amp; Sales report</div>
+          <div class="uc-how">The <b>.xlsx</b> file exported from <b>Apprise</b>
+            (the Inventory On Order and Sales report).</div>
+          <label class="uc-drop" id="dropErp" for="fileErp">
+            <span class="uc-drop-icon">⬆</span>
+            <span class="uc-drop-text">Drag the inventory <b>.xlsx</b> here<br><span class="muted">or click to choose</span></span>
+          </label>
+          <input id="fileErp" type="file" accept=".xlsx,.xls,.csv" hidden />
+          <div class="uc-status" id="statusErp">Not uploaded yet</div>
+        </div>
+      </div>
+
+      <div class="upload-foot">
+        <div id="uploadSummary" class="upload-summary"></div>
+        <button id="submitBtn" class="btn btn-primary btn-lg" disabled>Submit &amp; view dashboard →</button>
+      </div>
+      <div id="uploadConfirm" class="upload-confirm hidden"></div>
       <p class="dz-note">Everything runs locally in your browser. No data is uploaded anywhere.</p>
     </div>
   </section>
@@ -127,7 +159,7 @@
     </footer>
   </main>
 
-  <script src="whitelist.js"></script>
-  <script src="app.js"></script>
+  <script src="whitelist.js?v=3"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
