@@ -577,7 +577,10 @@ function buildAssumptions() {
       <input id="aSafety" type="number" min="0" step="1" value="${A.safety}" /></div>
     <div class="assume"><label>Round order up to multiple of</label>
       <input id="aPack" type="number" min="1" step="1" value="${A.pack}" /><span class="hint">Case / carton pack</span></div>
-    ${fbaField}`;
+    ${fbaField}
+    <div class="assume apply"><label>&nbsp;</label>
+      <button id="applyAssumptions" type="button" class="btn btn-accent">↻ Update table</button>
+      <span class="hint">Recalculate projections &amp; reorder qtys</span></div>`;
 
   const rewire = () => {
     A.window = parseInt($("#aWindow").value, 10);
@@ -592,6 +595,12 @@ function buildAssumptions() {
   };
   ["aWindow","aWeight","aGrowth","aLead","aCover","aSafety","aPack","aFbaCover"].forEach((id) => {
     const el = $("#" + id); if (el) el.addEventListener("change", rewire);
+  });
+  // explicit update button (also flashes to confirm it ran)
+  $("#applyAssumptions").addEventListener("click", () => {
+    rewire();
+    const b = $("#applyAssumptions");
+    b.classList.add("flash"); setTimeout(() => b.classList.remove("flash"), 600);
   });
 }
 
