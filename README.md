@@ -33,6 +33,18 @@ Click **Upload report** (or drag a file onto the page). Upload either report fir
 add the other anytime — they're combined automatically. The FBA file is matched to the ERP
 by stripping the leading `FBA` from each Amazon SKU (e.g. `FBA5530619` → `5530619`).
 
+### Focus list (cuts the ERP noise)
+
+The ERP report has ~1,800 SKUs, most of which are noise. The dashboard shows only your
+**focus list** in the Reorder/PO view: a SKU is included if it's in the move-forward list,
+its code is **≥ 5,530,847** (your new-items block and anything newer), **or** it's an FBA
+item (FBA is always kept). Everything else is hidden — tick **"Show all SKUs"** to reveal it.
+
+The list is bundled in `whitelist.js` (move-forward codes + the `NEW_ITEM_MIN` threshold).
+To refresh it, just **upload an updated `move forward items.xlsx`** (the one with the
+`Continue Relationship Y/N` column) — it replaces the move-forward set for that session.
+FBA is never filtered.
+
 ### Two views (top toggle, appears once both files are loaded)
 - **📦 Reorder / PO** — what to order from suppliers into your warehouse.
 - **🚚 FBA restock** — what to ship from your warehouse into Amazon FBA. The **FBA Action**

@@ -67,7 +67,8 @@
       <h1>Upload your inventory reports</h1>
       <p>Drop your <strong>ERP "Inventory On Order &amp; Sales"</strong> <code>.xlsx</code> and/or your
          <strong>Amazon FBA restock</strong> <code>.csv</code> here — or click to choose. Add the second file
-         anytime and the two are matched and combined automatically.</p>
+         anytime and the two are matched and combined automatically. You can also upload an updated
+         <strong>"move forward items"</strong> <code>.xlsx</code> to refresh the focus list.</p>
       <label class="btn btn-primary btn-lg" for="fileInput">Choose file</label>
       <p class="dz-note">Everything runs locally in your browser. No data is uploaded anywhere.</p>
     </div>
@@ -103,6 +104,7 @@
       <select id="statusFilter" class="select"></select>
       <label class="check"><input type="checkbox" id="groupBySupplier" /> Group by supplier</label>
       <label class="check"><input type="checkbox" id="onlyActionable" checked /> Only items needing action</label>
+      <label class="check" id="showAllWrap"><input type="checkbox" id="showAllSkus" /> Show all SKUs (incl. excluded)</label>
       <div class="controls-spacer"></div>
       <button id="exportPO" class="btn btn-accent">Export reorder / PO</button>
       <button id="exportFBA" class="btn btn-accent hidden">Export FBA ship-in</button>
@@ -125,6 +127,7 @@
     </footer>
   </main>
 
+  <script src="whitelist.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

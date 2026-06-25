@@ -22,7 +22,22 @@ const STATE = {
   expanded: new Set(),   // productCodes with an open detail row
   sort: { key: "urgency", dir: "desc" },
   bound: false,          // persistent control listeners attached once
+  // ----- focus list (ERP noise filter) -----
+  whitelist: new Set(typeof window !== "undefined" && window.MOVE_FORWARD_CODES ? window.MOVE_FORWARD_CODES : []),
+  newItemMin: (typeof window !== "undefined" && window.NEW_ITEM_MIN) ? window.NEW_ITEM_MIN : Infinity,
+  whitelistSource: "bundled",   // bundled | uploaded
+  showAll: false,        // when true, ignore the focus filter and show every ERP SKU
 };
+
+/* A SKU is on the ERP "focus list" if it's a move-forward item, a new item
+   (code >= newItemMin), or an FBA item (always kept). */
+function isFocus(p) {
+  if (p.fba) return true;
+  if (STATE.whitelist.has(p.code)) return true;
+  const n = parseInt(p.code, 10);
+  return isFinite(n) && n >= STATE.newItemMin;
+}
+function poVisible(p) { return p.hasERP && (STATE.showAll || p.included); }
 
 const ASSUMPTIONS = {
   window: 6, weighting: "even", growth: 0,
@@ -60,16 +75,23 @@ function loadFile(file) {
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const probe = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null })[0] || [];
       const headerSet = new Set(probe.map((h) => String(h == null ? "" : h).trim()));
-      const isERP = !!wb.Sheets["report-data"] || (headerSet.has("Product Code") && headerSet.has("On Hand"));
+      // move-forward file shares "Product Code"/"On Hand" with the ERP, so check its unique columns FIRST
+      const isMoveFwd = headerSet.has("Continue Relationship Y/N") || headerSet.has("Closeout Y/N");
       const isFBA = headerSet.has("fnsku") || headerSet.has("fba-inventory-level-health-status") ||
         (headerSet.has("sku") && headerSet.has("asin") && headerSet.has("available"));
+      const isERP = !!wb.Sheets["report-data"] || (headerSet.has("Product Code") && headerSet.has("On Hand"));
 
-      if (isERP) STATE.erp = parseERP(wb);
+      if (isMoveFwd) {
+        const n = parseWhitelist(wb);
+        if (!STATE.products.length) { alert(`Move-forward focus list updated: ${n} items.\n\nNow upload your ERP and/or FBA report.`); return; }
+        alert(`Move-forward focus list updated: ${n} items.`);
+      }
       else if (isFBA) STATE.fba = parseFBA(wb);
-      else { alert("Unrecognized file. Expected the ERP inventory .xlsx or the Amazon FBA restock .csv."); return; }
+      else if (isERP) STATE.erp = parseERP(wb);
+      else { alert("Unrecognized file. Expected the ERP inventory .xlsx, the Amazon FBA restock .csv, or the move-forward items .xlsx."); return; }
 
       mergeData();
-      if (!STATE.products.length) { alert("No product rows found in that file."); return; }
+      if (!STATE.products.length) { return; }
       // default view based on what's loaded
       STATE.view = STATE.hasERP ? (STATE.view || "po") : "fba";
       if (STATE.view === "po" && !STATE.hasERP) STATE.view = "fba";
@@ -201,6 +223,26 @@ function parseFBA(wb) {
   return { rows: list, byKey, meta: { snapshotDate: snapshot, source: "fba" } };
 }
 
+/* ============================================================
+   PARSING — move-forward focus list (updates the ERP whitelist)
+   ============================================================ */
+function parseWhitelist(wb) {
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+  const header = rows[0].map((h) => (h == null ? "" : String(h).trim()));
+  const codeCol = header.indexOf("Product Code");
+  const set = new Set();
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row) continue;
+    const code = row[codeCol];
+    if (code != null && code !== "") set.add(String(code).trim());
+  }
+  STATE.whitelist = set;
+  STATE.whitelistSource = "uploaded";
+  return set.size;
+}
+
 /* Merge a second FBA listing for the same SKU into the first.
    Sum physical/velocity fields; for Amazon's recommendation take the max (don't
    double-order one ASIN); keep the most-severe health; force days-of-supply to
@@ -250,6 +292,9 @@ function mergeData() {
       });
     });
   }
+  // flag each product against the ERP focus list (FBA always kept)
+  products.forEach((p) => { p.included = isFocus(p); });
+
   STATE.products = products;
   STATE.months = STATE.erp ? STATE.erp.months : [];
   STATE.completeMonths = STATE.erp ? STATE.erp.completeMonths : [];
@@ -368,8 +413,12 @@ function finalShip(p) {
 function buildUI() {
   const m = STATE.meta, bits = [];
   if (m["company-name"]) bits.push(esc(m["company-name"]));
-  if (STATE.hasERP) bits.push(`ERP ✓ ${STATE.erp.products.length.toLocaleString()} SKUs`);
+  if (STATE.hasERP) {
+    const focus = STATE.products.filter((p) => p.hasERP && p.included).length;
+    bits.push(`ERP ✓ ${focus.toLocaleString()} focus SKUs <span class="muted">of ${STATE.erp.products.length.toLocaleString()}</span>`);
+  }
   if (STATE.hasFBA) bits.push(`FBA ✓ ${STATE.fba.rows.length.toLocaleString()} SKUs`);
+  bits.push(`Focus list: ${STATE.whitelistSource === "uploaded" ? "uploaded" : "bundled"} (${STATE.whitelist.size.toLocaleString()})`);
   if (m["printed-date"]) bits.push("ERP " + esc(String(m["printed-date"]).split(" ")[0]));
   if (STATE.hasFBA && STATE.fba.meta.snapshotDate) bits.push("FBA " + esc(String(STATE.fba.meta.snapshotDate)));
   $("#reportMeta").innerHTML = bits.join(" &nbsp;•&nbsp; ");
@@ -447,7 +496,7 @@ function buildAssumptions() {
 }
 
 function buildFilters() {
-  const pool = STATE.products.filter((p) => STATE.view === "fba" ? p.fbaCalc : p.hasERP);
+  const pool = STATE.products.filter((p) => STATE.view === "fba" ? p.fbaCalc : poVisible(p));
   const suppliers = [...new Set(pool.map((p) => p.supplier))].sort();
   const cats = [...new Set(pool.map((p) => p.category))].sort();
   $("#supplierFilter").innerHTML = `<option value="">All suppliers (${suppliers.length})</option>` +
@@ -464,13 +513,15 @@ function buildFilters() {
   const fbaView = STATE.view === "fba";
   $("#exportPO").classList.toggle("hidden", fbaView || !STATE.hasERP);
   $("#exportFBA").classList.toggle("hidden", !fbaView || !STATE.hasFBA);
+  $("#showAllWrap").classList.toggle("hidden", fbaView); // focus filter only applies to ERP/PO view
+  $("#showAllSkus").checked = STATE.showAll;
   $("#legend").innerHTML = fbaView
     ? `<b>FBA restock:</b> ship from your warehouse into Amazon.
        <span class="badge b-stockout">FBA out</span> out of stock at Amazon ·
        <span class="badge b-reorder">Ship + reorder</span> ship now, warehouse can't fully cover → also cut a PO ·
        <span class="badge b-healthy">Ship to FBA</span> warehouse covers it ·
        <span class="badge b-over">FBA excess</span> too much at Amazon.`
-    : `<b>Reorder / PO:</b> order from your supplier into your warehouse. Suggested qty fills toward your coverage target; edit any Order Qty before exporting.`;
+    : `<b>Reorder / PO:</b> order from your supplier into your warehouse. Showing your <b>focus list</b> (move-forward items, new items ≥ ${STATE.newItemMin === Infinity ? "n/a" : STATE.newItemMin.toLocaleString()}, and all FBA items); noise is hidden — tick “Show all SKUs” to reveal everything. Edit any Order Qty before exporting.`;
   $("#footNote").textContent = fbaView
     ? "Ship Qty = min(recommended ship-in, warehouse available). Override before exporting; \"Ship + reorder\" means also raise a PO."
     : "Suggested order = (lead-time + coverage + safety) demand − (available + on order). Override any quantity before exporting.";
@@ -484,6 +535,7 @@ function bindControls() {
   $("#exportPO").addEventListener("click", exportPO);
   $("#exportFBA").addEventListener("click", exportFBA);
   $("#exportAll").addEventListener("click", exportAll);
+  $("#showAllSkus").addEventListener("change", (e) => { STATE.showAll = e.target.checked; buildFilters(); refresh(); });
 
   $("#gridBody").addEventListener("input", (e) => {
     if (!e.target.classList.contains("qty-input")) return;
@@ -527,7 +579,7 @@ function renderKPIs() {
       { v: shortfall.length, l: "Ship + reorder", s: "warehouse can't cover", cls: shortfall.length ? "alert" : "good" },
     ];
   } else {
-    const E = P.filter((p) => p.hasERP);
+    const E = P.filter(poVisible);
     const sellable = E.filter((p) => p.velMonthly > 0 && !p.discontinued);
     const stockouts = E.filter((p) => p.status === "Stockout");
     const reorder = E.filter((p) => finalQty(p) > 0);
@@ -566,7 +618,7 @@ function renderInsights() {
       card("Ship + reorder (warehouse short)", "⚠️", short, (p) => li(`${p.code} · ${p.name}`, `short ${fmt(p.fbaCalc.shortfall)}`)) +
       card("FBA excess (consider removal)", "🧊", excess, (p) => li(`${p.code} · ${p.name}`, `${fmt(p.fba.excess)} excess`));
   } else {
-    const E = P.filter((p) => p.hasERP);
+    const E = P.filter(poVisible);
     const urgent = E.filter((p) => p.status === "Stockout" || p.status === "Critical").sort((a, b) => b.urgency - a.urgency).slice(0, 6);
     const growing = E.filter((p) => p.velMonthly >= 1 && p.trendPct != null && p.trendPct > 0.15).sort((a, b) => b.trendPct - a.trendPct).slice(0, 6);
     const declining = E.filter((p) => p.last12 > 5 && p.trendPct != null && p.trendPct < -0.15).sort((a, b) => a.trendPct - b.trendPct).slice(0, 6);
@@ -648,7 +700,7 @@ function getFilteredSorted() {
   const fba = STATE.view === "fba";
 
   let rows = STATE.products.filter((p) => {
-    if (fba ? !p.fbaCalc : !p.hasERP) return false;
+    if (fba ? !p.fbaCalc : !poVisible(p)) return false;
     if (sup && p.supplier !== sup) return false;
     if (cat && p.category !== cat) return false;
     if (st) { if (fba ? p.fbaCalc.action !== st : p.status !== st) return false; }
@@ -712,8 +764,10 @@ function renderTable() {
   }
   body.innerHTML = html;
 
-  const total = STATE.products.filter((p) => STATE.view === "fba" ? p.fbaCalc : p.hasERP).length;
-  $("#rowCount").textContent = `${rows.length.toLocaleString()} of ${total.toLocaleString()} SKUs shown`;
+  const total = STATE.products.filter((p) => STATE.view === "fba" ? p.fbaCalc : poVisible(p)).length;
+  const noiseNote = (STATE.view !== "fba" && !STATE.showAll && STATE.hasERP)
+    ? ` <span class="muted">(focus list — ${(STATE.products.filter((p) => p.hasERP).length - total).toLocaleString()} noise SKUs hidden)</span>` : "";
+  $("#rowCount").innerHTML = `${rows.length.toLocaleString()} of ${total.toLocaleString()} SKUs shown${noiseNote}`;
 }
 
 function trCommon(p) {
@@ -848,7 +902,7 @@ function timestamp() {
 }
 
 function exportPO() {
-  const rows = STATE.products.filter((p) => p.hasERP && finalQty(p) > 0)
+  const rows = STATE.products.filter((p) => poVisible(p) && finalQty(p) > 0)
     .sort((a, b) => a.supplier.localeCompare(b.supplier) || b.urgency - a.urgency);
   if (!rows.length) { alert("No items currently have an order quantity greater than 0."); return; }
   const header = ["Supplier", "Supplier Code", "Product Code", "Product Name", "Category", "On Hand", "Available",
@@ -902,7 +956,8 @@ function exportAll() {
     "FBA Health", "FBA Action", "Suggested Ship", "Ship Qty"] : [];
   const header = [...head, ...fbaHead, ...monthLabels];
   const aoa = [header];
-  const rows = [...STATE.products].sort((a, b) => (b.urgency || 0) + (b.fbaCalc ? b.fbaCalc.fbaUrgency : 0) - ((a.urgency || 0) + (a.fbaCalc ? a.fbaCalc.fbaUrgency : 0)));
+  const rows = STATE.products.filter((p) => poVisible(p) || p.fba)
+    .sort((a, b) => (b.urgency || 0) + (b.fbaCalc ? b.fbaCalc.fbaUrgency : 0) - ((a.urgency || 0) + (a.fbaCalc ? a.fbaCalc.fbaUrgency : 0)));
   rows.forEach((p) => {
     const base = [p.status, p.code, p.name, p.desc, p.supplier, p.supCode, p.category,
       Math.round(p.onHand), Math.round(p.available), Math.round(p.onOrder), Math.round(p.inTransit),
