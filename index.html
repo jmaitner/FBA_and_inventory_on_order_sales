@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Distribution Solutions — Reorder &amp; Sales Dashboard</title>
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
   <script src="vendor/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -73,8 +73,9 @@
         <!-- FBA -->
         <div class="upload-card" id="cardFba">
           <div class="uc-head"><span class="uc-step">1</span> Amazon FBA report</div>
-          <div class="uc-how">The <b>.csv</b> file you download from <b>Amazon Seller Central</b>
-            (Manage FBA Inventory / Restock report).</div>
+          <div class="uc-how">Where to get it on <b>Amazon.com</b>:
+            <span class="uc-path">FBA → Inventory → Reports → Inventory report</span>
+            Download that file (a <b>.csv</b>) and add it here.</div>
           <label class="uc-drop" id="dropFba" for="fileFba">
             <span class="uc-drop-icon">⬆</span>
             <span class="uc-drop-text">Drag the FBA <b>.csv</b> here<br><span class="muted">or click to choose</span></span>
@@ -86,8 +87,9 @@
         <!-- Inventory -->
         <div class="upload-card" id="cardErp">
           <div class="uc-head"><span class="uc-step">2</span> Inventory On Order &amp; Sales report</div>
-          <div class="uc-how">The <b>.xlsx</b> file exported from <b>Apprise</b>
-            (the Inventory On Order and Sales report).</div>
+          <div class="uc-how">In <b>Apprise</b>, run the
+            <span class="uc-path">Inventory On Order and Sales report</span>
+            and export it (a <b>.xlsx</b>), then add it here.</div>
           <label class="uc-drop" id="dropErp" for="fileErp">
             <span class="uc-drop-icon">⬆</span>
             <span class="uc-drop-text">Drag the inventory <b>.xlsx</b> here<br><span class="muted">or click to choose</span></span>
@@ -159,7 +161,7 @@
     </footer>
   </main>
 
-  <script src="whitelist.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="whitelist.js?v=4"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
